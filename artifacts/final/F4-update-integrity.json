@@ -1,0 +1,272 @@
+{
+  "schemaVersion": "F4-update-integrity-2026-09-05.v2",
+  "gate": "F4. Validate release/update integrity and record the external-service boundary",
+  "verifiedOn": "2026-09-05",
+  "verdict": "REJECT",
+  "approvalGating": false,
+  "scope": "Fresh local-only verification. No YouTube navigation, real release publish, GitHub mutation, credential use, or production-code change was performed.",
+  "baseline": {
+    "priorArtifacts": [
+      "artifacts/final/F4-update-integrity.json",
+      "artifacts/final/F4-boundary-audit.md"
+    ],
+    "priorVerdict": "REJECT",
+    "priorReportedBlockers": [
+      "checksum manifest coverage",
+      "workflow installer upload",
+      "OWNER_PLACEHOLDER"
+    ],
+    "baselineUse": "Prior F4 artifacts were read for comparison only; every release/update result below comes from the fresh F4-run-20260905 evidence."
+  },
+  "runtime": {
+    "dotnetRoot": "C:\\Program Files\\dotnet",
+    "sdk": "8.0.420",
+    "rid": "win-x64",
+    "selectionSource": "docs/RELEASE.md and .omo/notepads/youtube-tv-winui-shell/learnings.md"
+  },
+  "commands": [
+    {
+      "command": "DOTNET_ROOT='C:\\Program Files\\dotnet'; dotnet restore YouTubeTvShell.sln",
+      "exitCode": 0,
+      "evidence": "artifacts/final/F4-run-20260905/restore.log"
+    },
+    {
+      "command": "DOTNET_ROOT='C:\\Program Files\\dotnet'; dotnet build YouTubeTvShell.sln -c Release --no-restore",
+      "exitCode": 0,
+      "evidence": "artifacts/final/F4-run-20260905/release-build.log"
+    },
+    {
+      "command": "DOTNET_ROOT='C:\\Program Files\\dotnet'; dotnet test YouTubeTvShell.sln -c Release --no-build --filter 'FullyQualifiedName~UpdateFeedTests|FullyQualifiedName~UpdateDecisionTests|FullyQualifiedName~UpdatePromptTests' --logger 'trx;LogFileName=F4-update-focused.trx' --results-directory artifacts/final/F4-run-20260905/test-results",
+      "exitCode": 0,
+      "evidence": "artifacts/final/F4-run-20260905/test-results/F4-update-focused.trx",
+      "summary": "29 passed, 0 failed, 0 not executed"
+    },
+    {
+      "command": "DOTNET_ROOT='C:\\Program Files\\dotnet'; vpk pack --packId YouTubeTvShell --packVersion 0.0.1-f4-verify --packDir src/YouTubeTvShell/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64 --mainExe YouTubeTvShell.exe --outputDir artifacts/final/F4-run-20260905/package",
+      "exitCode": 0,
+      "evidence": "artifacts/final/F4-run-20260905/vpk-pack.log",
+      "toolVersion": "Velopack CLI 1.2.0"
+    },
+    {
+      "command": "Get-FileHash and certutil -hashfile against the exact setup executable and full nupkg, followed by a child checksum verifier against a deliberately corrupted copy",
+      "exitCode": 0,
+      "evidence": [
+        "artifacts/final/F4-run-20260905/package/SHA256SUMS.txt",
+        "artifacts/final/F4-run-20260905/sha256-records.json",
+        "artifacts/final/F4-run-20260905/corruption-guard.log"
+      ]
+    },
+    {
+      "command": "Temporary .NET 8 harness using Velopack SimpleFileSource/SimpleWebSource and TestVelopackLocator against local fixtures only",
+      "exitCode": 0,
+      "evidence": [
+        "artifacts/final/F4-run-20260905/actual-local-feed.json",
+        "artifacts/final/F4-run-20260905/actual-local-feed.log"
+      ],
+      "bounded": true
+    },
+    {
+      "command": "DOTNET_ROOT='C:\\Program Files\\dotnet'; dotnet test YouTubeTvShell.sln -c Release --no-build --filter 'FullyQualifiedName!~LiveApp' --logger 'trx;LogFileName=F4-host-only.trx' --results-directory artifacts/final/F4-run-20260905/host-results",
+      "exitCode": 0,
+      "evidence": [
+        "artifacts/final/F4-run-20260905/host-results/F4-host-only.trx",
+        "artifacts/final/F4-run-20260905/host-only-test-summary.json"
+      ],
+      "summary": "84 passed, 0 failed, 0 not executed; LiveApp tests excluded by the documented manual gate"
+    }
+  ],
+  "checks": [
+    {
+      "name": "confirmation latch / no download before positive confirmation",
+      "status": "PASS",
+      "evidence": [
+        "src/YouTubeTvShell/VelopackWiring.cs:118-125 returns on Cancel/close/headless prompt and calls ConfirmUpdate only after a positive dialog result.",
+        "src/YouTubeTvShell/UpdateService.cs:58-103 resets and enforces the confirmation latch.",
+        "artifacts/final/F4-run-20260905/test-results/F4-update-focused.trx: UpdatePromptTests.ConfirmLatch_Transitions_BlockDownloadUntilConfirmed and UpdateDecisionTests.Download_WithoutConfirm_ThrowsInvalidOperationException.",
+        "artifacts/final/F4-run-20260905/actual-local-feed.json: localFeedDecline has no full package after CheckForUpdatesAsync and downloadCalled=false."
+      ]
+    },
+    {
+      "name": "local-feed update success",
+      "status": "PASS_WITH_SCOPE",
+      "scope": "Actual local Velopack check and download succeeded after the harness positive decision. ApplyUpdatesAndRestart was deliberately not invoked because it would replace/restart the verifier process; no installed-version switch is claimed.",
+      "evidence": [
+        "artifacts/final/F4-run-20260905/actual-local-feed.json: localFeedConfirmAndDownload.checkReturnedUpdate=true and downloadedPackages contains YouTubeTvShell-0.0.1-f4-verify-full.nupkg.",
+        "artifacts/final/F4-run-20260905/package/releases.win.json: full feed asset and SHA-256 metadata.",
+        "artifacts/final/F4-run-20260905/test-results/F4-update-focused.trx: UpdateFeedTests.LocalFeed_HigherVersion_CheckReturnsVersionAndNotes and UpdateFeedTests.UpdateSuccess_Artifact_RecordsVersionNotesAndConfirmationGate."
+      ]
+    },
+    {
+      "name": "explicit decline preserves current version",
+      "status": "PASS",
+      "evidence": [
+        "artifacts/final/F4-run-20260905/actual-local-feed.json: localFeedDecline.userDecision=declined, downloadCalled=false, fullPackagesAfterCheck=[], currentVersionMarkerUnchanged=true.",
+        "artifacts/final/F4-run-20260905/test-results/F4-update-focused.trx: confirmation latch reset/without-confirmation tests passed."
+      ]
+    },
+    {
+      "name": "invalid checksum preserves current version",
+      "status": "PASS",
+      "evidence": [
+        "artifacts/final/F4-run-20260905/actual-local-feed.json: invalidChecksum.downloadRejected=true with ChecksumFailedException, no downloaded full package, and currentVersionPreserved=true.",
+        "artifacts/final/F4-run-20260905/corruption-guard.log: a child verifier returned exit code 1 for a corrupted copy while the original nupkg hash stayed unchanged.",
+        "artifacts/final/F4-run-20260905/test-results/F4-update-focused.trx: UpdateFeedTests.InvalidChecksum_CurrentVersionRunning_RetryMessage and UpdateDecisionTests.ChecksumMismatch_KeepsRunning_RetryableMessage."
+      ]
+    },
+    {
+      "name": "unreachable local feed preserves current version and emits retryable behavior",
+      "status": "PASS",
+      "evidence": [
+        "artifacts/final/F4-run-20260905/actual-local-feed.json: an unused loopback port produced HttpRequestException, no downloaded full package, and currentVersionPreserved=true.",
+        "src/YouTubeTvShell/UpdateService.cs:110-122 maps HttpRequestException to a non-sensitive retry message and retains the running version wording.",
+        "artifacts/final/F4-run-20260905/test-results/F4-update-focused.trx: UpdateFeedTests.UnreachableFeed_CurrentVersionRunning_NonSensitiveRetryMessage and UpdateFeedTests.UnreachableFeed_Timeout_CurrentVersionRunning_RetryMessage."
+      ]
+    },
+    {
+      "name": "Velopack package output",
+      "status": "PASS",
+      "evidence": [
+        "artifacts/final/F4-run-20260905/vpk-pack.log: CLI 1.2.0 completed setup and portable package creation.",
+        "artifacts/final/F4-run-20260905/package/assets.win.json: installer, full nupkg, and portable asset.",
+        "artifacts/final/F4-run-20260905/package/releases.win.json: YouTubeTvShell full asset with size and SHA-256.",
+        "src/YouTubeTvShell/App.xaml.cs:15 calls VelopackApp.Build().Run() before UI initialization."
+      ]
+    },
+    {
+      "name": "fresh checksum coverage for publishable assets",
+      "status": "PASS",
+      "assets": [
+        {
+          "file": "YouTubeTvShell-win-Setup.exe",
+          "bytes": 17095749,
+          "sha256": "ED06102AD6979BE6BC7D08E7D04AFEFB2ACEB5D8A8DE954ACBF1B35E90D9C6F4"
+        },
+        {
+          "file": "YouTubeTvShell-0.0.1-f4-verify-full.nupkg",
+          "bytes": 12634181,
+          "sha256": "1DF7398370779F721CB9721B34C160CE7130E0D64044F275A4EE233B221B88D8"
+        }
+      ],
+      "evidence": [
+        "artifacts/final/F4-run-20260905/package/SHA256SUMS.txt",
+        "artifacts/final/F4-run-20260905/sha256-records.json: Get-FileHash and independent certutil hashes match for both assets.",
+        "artifacts/final/F4-run-20260905/feed-and-workflow-summary.json: feed SHA-256 and size match the full nupkg."
+      ]
+    },
+    {
+      "name": "workflow upload set",
+      "status": "PASS",
+      "uploadPatterns": [
+        "artifacts/release/*.nupkg",
+        "artifacts/release/*.exe",
+        "artifacts/release/releases.win.json",
+        "artifacts/release/SHA256SUMS.txt"
+      ],
+      "checksumSelection": "artifacts/release root files with .nupkg or .exe extensions",
+      "evidence": [
+        ".github/workflows/release.yml:62-71 selects .nupkg and .exe assets for checksums.",
+        ".github/workflows/release.yml:103-110 explicitly uploads nupkg, exe installer, releases.win.json, and SHA256SUMS.txt.",
+        "artifacts/final/F4-run-20260905/feed-and-workflow-summary.json"
+      ]
+    },
+    {
+      "name": "secret boundary",
+      "status": "PASS",
+      "evidence": [
+        "src/YouTubeTvShell/VelopackWiring.cs:51-54 uses GithubSource with accessToken: null.",
+        "docs/RELEASE.md:3-7,63-65 and .github/workflows/release.yml:1-7 prohibit repository credentials and use browser/gh or the built-in workflow token boundary.",
+        "artifacts/final/F4-run-20260905/boundary-static.json: no credential-like token/private-key matches."
+      ]
+    },
+    {
+      "name": "manual YouTube service boundary",
+      "status": "BLOCKED_HUMAN_GATE",
+      "evidence": [
+        "docs/manual-youtube-checklist.md:1-8 labels the procedure human-only and forbids account evidence in the repository.",
+        "docs/manual-youtube-checklist.md:38-48 makes failed Leanback UI a STOP THE RELEASE gate and forbids DOM/content injection, ad blocking, and DRM/control workarounds.",
+        "docs/RELEASE.md:220-235 separates the checklist from CI and requires pass/fail-only evidence."
+      ],
+      "requiredAction": "A human must complete the checklist on the target machine outside repository evidence; if the TV UI fails, stop the release. This verification did not navigate to YouTube."
+    },
+    {
+      "name": "GitHub owner configuration",
+      "status": "BLOCKED_OWNER_PLACEHOLDER",
+      "configuredValue": "OWNER_PLACEHOLDER",
+      "evidence": [
+        "src/YouTubeTvShell/UpdateConfig.cs:11 remains OWNER_PLACEHOLDER.",
+        "artifacts/research/F4-owner-research.md: the local remote proposed danielrepublic, but the corresponding GitHub page and REST repository endpoint returned 404; this does not authoritatively identify the release host."
+      ],
+      "requiredInput": "Provide the authoritative GitHub repository URL (or owner/org plus repository name) that will host the public GitHub Release assets, and confirm it is reachable under that owner. Do not infer it from the Windows username, path, or project name."
+    }
+  ],
+  "adversarialClasses": [
+    {
+      "class": "malformed_input",
+      "status": "PASS",
+      "probe": "Valid local feed with deliberately invalid SHA-256 plus invalid-checksum unit cases",
+      "evidence": "actual-local-feed.json and F4-update-focused.trx"
+    },
+    {
+      "class": "untrusted_external_text_prompt_injection",
+      "status": "PASS_WITH_SCOPE",
+      "probe": "Release notes enter BuildPromptText, HTML tags are stripped/entities decoded, and ContentDialog receives plain text; no HTML control/script execution path or credential-like source text was found.",
+      "evidence": "src/YouTubeTvShell/VelopackWiring.cs:157-188,238-250; UpdatePromptTests.BuildPromptText_HtmlNotes_IncludesVersionAndPlainText; boundary-static.json"
+    },
+    {
+      "class": "cancel_resume",
+      "status": "PASS_WITH_SCOPE",
+      "probe": "Actual local-feed decline made no full-package download; new decision cycles reset the latch and network/timeout failures map to retryable messages.",
+      "evidence": "actual-local-feed.json and F4-update-focused.trx"
+    },
+    {
+      "class": "stale_state",
+      "status": "PASS",
+      "probe": "Fresh dated package directory, fresh TRX, feed metadata, manifest, and independent re-hashes were used; prior F4 artifacts were not used as pass evidence.",
+      "evidence": "artifacts/final/F4-run-20260905/"
+    },
+    {
+      "class": "dirty_worktree",
+      "status": "PASS",
+      "probe": "No product source, test source, workflow, or pre-existing evidence was deleted or changed by the verification; only fresh ignored evidence and final F4 records were written.",
+      "evidence": "git status/diff inspection and final artifact paths"
+    },
+    {
+      "class": "long_external_commands",
+      "status": "PASS",
+      "probe": "Restore/build/test/package commands were bounded by 600000 ms; local hash/static/cleanup commands were bounded by 120000 ms; no external service was contacted.",
+      "evidence": "commands above and F4-run-20260905 logs"
+    },
+    {
+      "class": "misleading_success_output",
+      "status": "PASS",
+      "probe": "The manifest hashes were independently recomputed with certutil; both matched Get-FileHash and feed metadata.",
+      "evidence": "sha256-records.json and feed-and-workflow-summary.json"
+    },
+    {
+      "class": "mid_operation_interrupts",
+      "status": "NOT_APPLICABLE",
+      "probe": "No forced process interruption was injected into ApplyUpdatesAndRestart because that operation intentionally was not run; failed download/checksum paths were exercised and preserved the current version.",
+      "evidence": "actual-local-feed.json and corruption-guard.log"
+    },
+    {
+      "class": "flaky_tests",
+      "status": "NOT_APPLICABLE",
+      "probe": "LiveApp GUI/CDP tests are explicitly manual-gated and excluded from this bounded host-only/update run; no flaky pass was substituted.",
+      "evidence": ".github/workflows/release.yml:36-48 and docs/RELEASE.md:80-95"
+    }
+  ],
+  "cleanup": {
+    "status": "PASS",
+    "evidence": "artifacts/final/F4-run-20260905/cleanup-receipt.json",
+    "receipt": "No YouTubeTvShell processes, Velopack test feeds, local-feed harness/work directories, package-guard copies, or YTTV host-test temp profiles remained. The dated F4 evidence directory was intentionally retained."
+  },
+  "blockingConditions": [
+    "GitHubRepoOwner remains OWNER_PLACEHOLDER because the actual public release owner/host was not authoritatively identified; required input is the confirmed repository URL/owner/org.",
+    "The required human-only YouTube checklist was not run in this verification and remains a no-release gate; no YouTube evidence may be stored in the repository."
+  ],
+  "clearedPriorConditions": [
+    "Fresh SHA256SUMS.txt covers the exact setup executable and full nupkg, with independent certutil confirmation.",
+    "Current release workflow upload set includes installer, nupkg, releases.win.json, and SHA256SUMS.txt."
+  ],
+  "approvalCondition": "Do not approve F4 until the authoritative owner input is supplied and the human-only checklist is completed with pass-only checkbox evidence outside the repository; a failed Leanback UI stops release."
+}
