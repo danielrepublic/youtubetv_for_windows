@@ -1,0 +1,110 @@
+# GitHub Release workflow — build, gate, package, checksum, publish
+#
+# Fail-closed by construction: the `publish` job depends on `build-test-package`
+# via `needs:`, so ANY red step (build, filtered tests, vpk pack, checksum
+# emit/verify) refuses publication — no assets are uploaded on failure.
+# There are no tokens or credentials in this file; release upload uses the
+# built-in `github.token` only.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+env:
+  DOTNET_ROOT: "C:\\Program Files\\dotnet"
+  DOTNET_NOLOGO: "true"
+
+jobs:
+  build-test-package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore + Release build
+        run: |
+          dotnet restore YouTubeTvShell.sln
+          dotnet build YouTubeTvShell.sln -c Release --no-restore
+
+      # LiveApp_* tests are MANUAL-GATED and intentionally excluded here:
+      # the 4 tests in tests/YouTubeTvShell.Tests/HostBehaviorTests.cs launch
+      # the real YouTubeTvShell.exe GUI over CDP with ~90s waits each and
+      # require an interactive desktop + installed WebView2 runtime, which CI
+      # runners do not provide (see issues.md "Live-test wall-clock hazard").
+      # They run only as a deliberate local batch per docs/RELEASE.md section 3.
+      # A red filtered run still fails this job and blocks publication below.
+      - name: Host-only unit tests (windowless)
+        run: >
+          dotnet test YouTubeTvShell.sln -c Release --no-build
+          --filter "FullyQualifiedName!~LiveApp"
+          --logger "trx;LogFileName=release-tests.trx"
+          --results-directory artifacts/release
+
+      - name: Install vpk CLI (pinned to Velopack 1.2.0)
+        run: dotnet tool install -g vpk --version 1.2.0
+
+      - name: Velopack pack
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          vpk pack --packId YouTubeTvShell --packVersion "$version" --packDir "src/YouTubeTvShell/bin/x64/Release/net8.0-windows10.0.19041.0/win-x64" --mainExe YouTubeTvShell.exe --outputDir artifacts/release
+
+      - name: Emit SHA-256 checksums
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem -Path artifacts/release -File | Where-Object {
+            $_.Extension -in '.nupkg', '.exe'
+          }
+          if (-not $assets) { throw "No pack assets found under artifacts/release — refusing publication." }
+          $lines = foreach ($a in $assets) {
+            $h = (Get-FileHash $a.FullName -Algorithm SHA256).Hash
+            "$h  $($a.Name)"
+          }
+          $lines | Out-File artifacts/release/SHA256SUMS.txt -Encoding ascii
+          Get-Content artifacts/release/SHA256SUMS.txt
+
+      - name: Verify checksums (fail-closed guard)
+        shell: pwsh
+        run: |
+          $ok = $true
+          foreach ($line in (Get-Content artifacts/release/SHA256SUMS.txt)) {
+            if (-not $line.Trim()) { continue }
+            $parts = $line -split '\s+'
+            $expected, $name = $parts[0], $parts[-1]
+            $actual = (Get-FileHash (Join-Path artifacts/release $name) -Algorithm SHA256).Hash
+            if ($actual -ne $expected) { Write-Error "CHECKSUM MISMATCH: $name"; $ok = $false }
+          }
+          if (-not $ok) { throw "Checksum verification failed — refusing publication." }
+          Write-Output "All checksums verified."
+
+      - name: Upload release-artifact bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: artifacts/release/
+
+  publish:
+    needs: build-test-package
+    runs-on: windows-latest
+    steps:
+      - name: Download release-artifact bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: release-bundle
+          path: artifacts/release
+
+      - name: Create GitHub Release with assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+             artifacts/release/*.nupkg
+             artifacts/release/*.exe
+             artifacts/release/releases.win.json
+             artifacts/release/SHA256SUMS.txt

@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A0A59769-2870-41C5-A13F-2DE8CC91A8F1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YouTubeTvShell", "src\YouTubeTvShell\YouTubeTvShell.csproj", "{5C974AEF-19B1-4853-8615-56D422F54B75}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{DC448448-6091-4A09-A563-18B0F7D6EA82}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YouTubeTvShell.Tests", "tests\YouTubeTvShell.Tests\YouTubeTvShell.Tests.csproj", "{A09C1106-CCE0-4CC1-8E9C-721A5DEA4D52}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5C974AEF-19B1-4853-8615-56D422F54B75}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{5C974AEF-19B1-4853-8615-56D422F54B75}.Debug|Any CPU.Build.0 = Debug|x64
+		{5C974AEF-19B1-4853-8615-56D422F54B75}.Release|Any CPU.ActiveCfg = Release|x64
+		{5C974AEF-19B1-4853-8615-56D422F54B75}.Release|Any CPU.Build.0 = Release|x64
+		{A09C1106-CCE0-4CC1-8E9C-721A5DEA4D52}.Debug|Any CPU.ActiveCfg = Debug|x64
+		{A09C1106-CCE0-4CC1-8E9C-721A5DEA4D52}.Debug|Any CPU.Build.0 = Debug|x64
+		{A09C1106-CCE0-4CC1-8E9C-721A5DEA4D52}.Release|Any CPU.ActiveCfg = Release|x64
+		{A09C1106-CCE0-4CC1-8E9C-721A5DEA4D52}.Release|Any CPU.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5C974AEF-19B1-4853-8615-56D422F54B75} = {A0A59769-2870-41C5-A13F-2DE8CC91A8F1}
+		{A09C1106-CCE0-4CC1-8E9C-721A5DEA4D52} = {DC448448-6091-4A09-A563-18B0F7D6EA82}
+	EndGlobalSection
+EndGlobal

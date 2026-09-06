@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "YouTubeTvShell": {
+      "commandName": "AppContainer",
+      "nativeDebugging": false
+    }
+  }
+}

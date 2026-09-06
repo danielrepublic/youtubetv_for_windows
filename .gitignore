@@ -1,0 +1,79 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Build output
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# .NET artifacts
+artifacts/
+publish/
+*.nupkg
+*.snupkg
+
+# Velopack output
+velopack-output/
+Releases/
+*.Setup.exe
+*-full.nupkg
+*-delta.nupkg
+
+# User-data / profile folders (must never be committed)
+*-TestProfile/
+*User_Data/
+WebView2UserData/
+user-data/
+
+# Test credentials and secrets
+*.credentials
+*.secret
+*.env.local
+test-credentials.*
+
+# Visual Studio / IDE
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Rider
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/
+
+# NuGet
+*.nuget.props
+*.nuget.targets
+packages/
+project.lock.json
+project.fragment.lock.json
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+!Youtube TV.lnk
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
